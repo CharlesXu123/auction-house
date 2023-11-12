@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./AUC.sol";
+import "./AuctionFactory.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+/**
+ * @title Auction Contract
+ * @author Shengsong Xu
+ * @dev Auction contract to manage the bidding process for an NFT.
+ */
 contract Auction {
     IERC721 public nft;
     AUC public aucToken;
@@ -16,22 +22,35 @@ contract Auction {
     uint256 public highestBid;
 
     address public admin;
-    /// 10 = 1%
+    /// @notice 10 = 1%
     uint256 public adminFeePercent;
+    address public factoryAddress;
 
-    /// true if the auction contract no longer has the NFT
+    /// @notice true if the auction contract no longer has the NFT
     /// (either because it was transferred to the highest bidder or back to the auctioneer)
     bool public ended;
     bool public bidPlaced;
 
+    /// @dev Contract for creating and managing an individual auction for an NFT.
+    /// @param _nftAddress Address of the NFT (ERC721) contract.
+    /// @param _aucAddress Address of the AUC (ERC20) token contract; defaults to a preset address if set to zero.
+    /// @param _auctioneer Address of the auctioneer who initiates the auction.
+    /// @param _tokenId Token ID of the NFT to be auctioned.
+    /// @param _startingPrice Initial starting price of the auction in AUC tokens.
+    /// @param _duration Duration of the auction in seconds.
+    /// @param _admin Address of the admin, typically for fee management.
+    /// @param _adminFeePercent The percentage fee (in basis points) taken by the admin on auction completion.
+    /// @param _factoryAddress Address of the factory contract that creates auction instances.
     constructor(
         address _nftAddress,
         address _aucAddress,
+        address _auctioneer,
         uint256 _tokenId,
         uint256 _startingPrice,
         uint256 _duration,
         address _admin,
-        uint256 _adminFeePercent
+        uint256 _adminFeePercent,
+        address _factoryAddress
     ) {
         nft = IERC721(_nftAddress);
         _aucAddress = _aucAddress == address(0)
@@ -41,55 +60,77 @@ contract Auction {
         tokenId = _tokenId;
         startingPrice = _startingPrice;
         endTime = block.timestamp + _duration;
-        auctioneer = msg.sender;
+        auctioneer = _auctioneer;
         admin = _admin;
         adminFeePercent = _adminFeePercent;
+        factoryAddress = _factoryAddress;
     }
 
-    /// Event to be emitted when a new bid is placed
+    /// @notice Event to be emitted when a new bid is placed
     event BidPlaced(address indexed bidder, uint256 amount);
-    /// Event to be emitted when the auction ends
+    /// @notice Event to be emitted when the auction ends
     event AuctionEnded(address indexed winner, uint256 amount);
-    /// Event to be emitted when starting price lowers
+    /// @notice Event to be emitted when starting price lowers
     event StartingPriceLowered(uint256 newStartingPrice);
 
+    /// @notice Ensures the action can only occur before the auction ends.
+    /// @dev Reverts if the auction has already ended or the end time has passed.
     modifier onlyBeforeEnd() {
         require(!ended, "Auction already ended.");
         require(block.timestamp < endTime, "Auction already expired.");
         _;
     }
 
+    /// @notice Ensures the action can only occur after the auction end time.
+    /// @dev Reverts if the current time is before the auction's end time.
     modifier onlyAfterEndTime() {
         require(block.timestamp > endTime, "Auction still ongoing.");
         _;
     }
 
+    /// @notice Ensures the action can only occur after the auction has been marked as ended.
+    /// @dev Reverts if the auction has not been set to ended yet.
     modifier onlyAfterSetEnd() {
         require(ended, "Auction not yet set to ended.");
         _;
     }
 
+    /// @notice Ensures the action can only occur if no bids have been placed yet.
+    /// @dev Reverts if a bid has already been placed in the auction.
     modifier onlyNoBitPlaced() {
         require(!bidPlaced, "Bid already placed.");
         _;
     }
 
+    /// @notice Ensures the action can only occur if at least one bid has been placed.
+    /// @dev Reverts if no bids have been placed in the auction.
     modifier onlyBitPlaced() {
         require(bidPlaced, "Bid not yet placed.");
         _;
     }
 
+    /// @notice Ensures that only the admin can call the function.
+    /// @dev Reverts if the caller is not the admin.
     modifier onlyByAdmin() {
         require(msg.sender == admin, "Only admin can call this function.");
         _;
     }
 
+    /// @notice Ensures that only the auctioneer can call the function.
+    /// @dev Reverts if the caller is not the auctioneer.
     modifier onlyByAuctioneer() {
         require(
             msg.sender == auctioneer,
             "Only auctioneer can call this function."
         );
         _;
+    }
+
+    /// @notice Notifies the factory when an auction ends.
+    /// @dev Should be used in conjunction with functions that mark the end of an auction.
+    modifier notifyFactoryAuctionEnded() {
+        _;
+        AuctionFactory(factoryAddress).notifyAuctionEnded(address(this));
     }
 
     /**
@@ -129,7 +170,12 @@ contract Auction {
      * @custom:refund Refunds the highest bid amount to the highest bidder, if a bid was placed.
      * @custom:event Emits the AuctionEnded event with the auctioneer's address and a final bid amount of 0.
      */
-    function cancelAuction() public onlyByAuctioneer onlyBeforeEnd {
+    function cancelAuction()
+        public
+        onlyByAuctioneer
+        onlyBeforeEnd
+        notifyFactoryAuctionEnded
+    {
         ended = true;
 
         nft.transferFrom(address(this), auctioneer, tokenId);
@@ -151,7 +197,7 @@ contract Auction {
      * @custom:transfer If no bid was placed, returns the NFT to the auctioneer.
      * @custom:event Emits the AuctionEnded event with the address of the recipient (highest bidder or auctioneer) and the final bid amount (or 0 if no bids were placed).
      */
-    function endAuction() public onlyByAuctioneer {
+    function endAuction() public onlyByAuctioneer notifyFactoryAuctionEnded {
         require(!ended, "Auction already ended.");
 
         ended = true;
@@ -176,7 +222,12 @@ contract Auction {
      * @custom:payment Transfers the highest bid amount minus the admin fee to the auctioneer.
      * @custom:event Emits the AuctionEnded event with the highest bidder's address and the highest bid amount.
      */
-    function cliamNFT() public onlyAfterEndTime onlyBitPlaced {
+    function claimNFT()
+        public
+        onlyAfterEndTime
+        onlyBitPlaced
+        notifyFactoryAuctionEnded
+    {
         require(!ended, "Auction already ended.");
         ended = true;
 
@@ -215,8 +266,11 @@ contract Auction {
      * @custom:requirement At least one bid must have been placed in the auction.
      * @custom:transfer Transfers the accumulated AUC token balance from the contract to the admin's address.
      */
-    function withdraw() public onlyAfterSetEnd onlyBitPlaced onlyByAdmin {
+    function withdraw() external onlyAfterSetEnd {
+        if (!bidPlaced) {
+            return;
+        }
         uint256 amount = aucToken.balanceOf(address(this));
-        aucToken.transfer(msg.sender, amount);
+        aucToken.transfer(admin, amount);
     }
 }
