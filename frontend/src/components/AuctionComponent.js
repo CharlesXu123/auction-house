@@ -88,7 +88,7 @@ export default function AuctionComponent() {
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, []);
+  }, [auctionAddress]);
 
   const handlePlaceBid = async (event) => {
     event.preventDefault();
