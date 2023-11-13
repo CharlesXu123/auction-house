@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 import "./Auction.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import "hardhat/console.sol";
@@ -69,6 +68,10 @@ contract AuctionFactory is AccessControl {
             isAuction[_nftAddress][_tokenId] == false,
             "Auction already exists for this NFT item."
         );
+        require(
+            _duration >= 1 minutes,
+            "Auction duration must be at least 1 minute."
+        );
 
         IERC721 nftContract = IERC721(_nftAddress);
         require(
@@ -122,6 +125,7 @@ contract AuctionFactory is AccessControl {
         address _newAdmin
     ) public onlyRole(DEFAULT_ADMIN_ROLE) {
         _grantRole(DEFAULT_ADMIN_ROLE, _newAdmin);
+        _grantRole(MANAGER_ROLE, _newAdmin);
         renounceRole(DEFAULT_ADMIN_ROLE, admin);
         admin = _newAdmin;
 

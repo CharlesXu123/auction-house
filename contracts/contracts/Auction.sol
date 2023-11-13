@@ -146,6 +146,11 @@ contract Auction {
      */
     function placeBid(uint256 bidAmount) external onlyBeforeEnd {
         require(bidAmount > highestBid, "There already is a higher bid");
+        require(
+            aucToken.allowance(msg.sender, address(this)) >= bidAmount,
+            "Insufficient allowance"
+        );
+        require(bidAmount >= startingPrice, "Bid amount too low");
 
         if (highestBid != 0) {
             aucToken.transfer(highestBidder, highestBid);

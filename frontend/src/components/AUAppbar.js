@@ -1,11 +1,10 @@
 import React from "react";
-import { AppBar, Toolbar, Typography, Button } from "@mui/material";
+import { AppBar, Toolbar, Typography } from "@mui/material";
 import Wallet from "./Wallet";
-import CameraIcon from "@mui/icons-material/Camera";
 import CssBaseline from "@mui/material/CssBaseline";
 import { useNavigate } from "react-router-dom";
-import AddIcon from "@mui/icons-material/Add";
 import GavelIcon from "@mui/icons-material/Gavel";
+import AccessControlButton from "./AccessControlButton";
 
 function AUAppbar() {
   const navigate = useNavigate();
@@ -24,18 +23,8 @@ function AUAppbar() {
           <Typography variant="h6" color="inherit" sx={{ flexGrow: 1 }}>
             Auction House
           </Typography>
+          <AccessControlButton />
           <Wallet sx={{ ml: 50 }} />
-          <Button
-            color="inherit"
-            startIcon={<AddIcon />}
-            sx={{ ml: 2 }}
-            variant="contained"
-            onClick={() => {
-              navigate("/mint");
-            }}
-          >
-            Create
-          </Button>
         </Toolbar>
       </AppBar>
     </>
