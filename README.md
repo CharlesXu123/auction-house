@@ -1,5 +1,4 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-24ddc0f5d75046c5622901739e7c5dd533143b0c8e959d652212380cedb1ea36.svg)](https://classroom.github.com/a/WOVDgdbS)
-# Auction House Dapp
+# Auction House Dapp: [https://auction-house-d71.netlify.app/](https://auction-house-d71.netlify.app/)
 
 This dApp allows users to participate in [English Auctions](https://en.wikipedia.org/wiki/English_auction).
 
